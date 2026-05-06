@@ -1,6 +1,5 @@
 #include "apm32f10x.h"
 #include "apm32_config.h"
-
 /* USER CODE BEGIN Includes */
 /* USER CODE END Includes */
 
@@ -35,6 +34,11 @@
      El problema está en lo de dejar quietos porque tocaría a punta de máscaras pero el enunciado dice que sea lo más corto posible.
      Entonces la manera de dejarlos quietos sin hacer máscaras es dejarlos en lo que estaban antes manualmente, que sabesmos por esa misma
      página que es 0x4.
+     NOTA IMPORTANTE: El tutorial de pinout entrega un código que modifica los valores de AFIO->PCFG1. Esto no es correcto para esta placa con este sdk.
+     La página 87-89 del manual nos indica que el registro que configura la funcionalidad der JTAG es AFIO_REMAP1->SWJCFG; con un 0b010 en este registro para
+     desabilitar JTAG, sin desactivar SWD, que es lo que necesitamos para comunicarnos con la placa. 
+     Revisando en apm32f10x.h, encontramos la unión con la estructura, que nos permite acceder a los bits individuales del registro, por lo que podemos colocar un 0b010 o 0x2
+     directamente en el campo SWJCFG sin afectar los demás bits.
  * 3. Generalmente, la multiplexación dinámica trata de prender y apagar los segmentos del, valga la redundancia, display 7 segmentos doble, de manera tan
     rápida que el ojo humano no pueda distinguir el cambio y piense que ambos dígitos están encedidos simultáneamente. Una definición formal de google dice
     que es una técnica que combina múltiples señales en una sola señal a través de un canal. Recordando una investigación que hice en redes; en wifi, se utilizan diferentes
@@ -53,8 +57,18 @@
     Para solucionar esto mediante software en este contexto, después de detectar el cambio de estado del interruptor, se puede esperar unos ms y verificar si sigue presionado el botón, 
     llegando así a la conclusión de que el cambio de estado es real. Mediante hardware, se puede hacer uso de un condensador y una resistencia, de manera que el condensador se cargue o
     descargue lentamente, evitando así los rebotes.
+ * 5. Finalmente, implementamos el manipulador binario, que pondrá en uso todos los elementos del circuito. Para esto, tomamos en consideración que tenemos seis leds, que podemos considerar
+    ordenados de manera "little endian" siempre que visto del lado de la A en la protoboard. Es decir, el led de la izquierda (verde ahora aunque sujeto a cambio) será el MSB, mientras que el
+    de la completa derecha (6ta posición y rojo) será el LSB. Sabemos que todos los leds están seguidos; entre PB12-15 - PA8-9, por lo que pensamos en empaquetar el conjunto de leds en un solo byte.
+    Este se entiende de esta manera X_X_B12_B13_B14_B15_A8_A9, donde los X son valores que siempre estarán en 0 pues van más allá de nuestro conjunto de 6 leds, que solo pueden estar prendidos o apagados.
+    Considerando esto, el valor máximo es 63 si los 6 bits de leds están en 1, lo que es 0x3f. Con esto, ya encontramos una forma de representar el estado completo de los leds, usando la técnica del empaquetado
+    vista en clase, aunque en otro contexto. Simplemente agregamos reglas como: no pasarnos de los límites al mover el cursor (que empieza en 0), el toggle del estado de un led se hace mediante un xor de un 1 
+    shifteado la posición del cursor veces, y bueno, en cada "iteración" de nuestro programa, imprimiremos el número en el 7 segmentos con la función anteriormente creada, mediante el número sacado del byte de
+    empaquetado.
 
  */
+
+extern volatile uint32_t msTicks;
 
 const uint8_t nums[10] = {
     0x3F, // 0
@@ -69,15 +83,19 @@ const uint8_t nums[10] = {
     0x6F  // 9
 };
 
-void mostrar_numero(uint8_t num);
+uint8_t cursor = 0;
+uint8_t leds_empaquetados = 0x3f; //Inciamos con todos prendidos, deberiamos ver un 63 en el 7 segmentos
+
 
 int main(void) {
     // Configures clocks and selected components
     APM32_Init();
+    SysTick_Init();
     
     /* USER CODE BEGIN Init */
     RCM->APB2CLKEN |= (1 << 2) | (1 << 3) | (1 << 0);
-    AFIO->PCFG1 = (AFIO->PCFG1 & ~(0x7 << 24)) | (0x2 << 24); //Desactivar JTAG
+    //AFIO->PCFG1 = (AFIO->PCFG1 & ~(0x7 << 24)) | (0x2 << 24); //Desactivar JTAG Este es el del ejemplo, no sirve
+    AFIO->REMAP1_B.SWJCFG = 0x2; //Desactivar JTAG real, sin afectar SWD;
     GPIOA->CFGLOW = 0x33333333; // PA0-7
     GPIOA->CFGHIG = 0x84488833; // PA8-15
     GPIOB->CFGHIG = 0x33334433; // PB8-15
@@ -90,9 +108,11 @@ int main(void) {
         /* USER CODE BEGIN While */
         //GPIOB->ODATA ^= (1 << 2); // Toggle LED PB2
         //delay_ms(500);
-        for(uint8_t i = 0; i < 100; i++)
-            mostrar_numero(i);
-
+        //  for(uint8_t i = 0; i < 100; i++)
+        //      for(int t = 0; t < 100; t++)
+        //          mostrar_numero(i);
+        //mostrar_numero(63);
+        manipulador_binario();
         /* USER CODE END While */
     }
     
@@ -130,8 +150,32 @@ void mostrar_numero(uint8_t num) {
 
 uint8_t debounce(uint16_t pin){
     if(!(GPIOA->IDATA & (1 << pin))){//si 0, presionado
-        delay_ms(20);//La estrategia de sw
+        // uint32_t start = msTicks;
+        // while((msTicks - start) < 20) mostrar_numero(leds_empaquetados);//esperamos 20ms para verificar que el cambio de estado es real
+        delay_ms(20);
         if(!(GPIOA->IDATA & (1 << pin))) return 1;//si espichado
     }
     return 0;//no espichado
+}
+
+void manejador_leds(uint8_t empaquetado){
+    GPIOB->ODATA &= ~((1 << 12) | (1 << 13) | (1 << 14) | (1 << 15));
+    GPIOB->ODATA |= ((empaquetado & 0x0F) << 12);
+
+    GPIOA->ODATA &= ~((1 << 8) | (1 << 9));
+    GPIOA->ODATA |= (((empaquetado >> 4) & 0x03) << 8);
+}
+
+void manipulador_binario(){
+    mostrar_numero(leds_empaquetados);
+    manejador_leds(leds_empaquetados);
+
+    if(debounce(10) && cursor >=1) cursor--;//izq
+    if(debounce(11) && cursor <= 5) cursor++;//der
+    if(debounce(12)) leds_empaquetados ^= (1 << cursor);//toggle
+    if(debounce(15)){//borrado
+        leds_empaquetados = 0; 
+        cursor = 0;
+    } 
+        
 }
