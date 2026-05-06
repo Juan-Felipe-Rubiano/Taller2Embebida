@@ -33,7 +33,7 @@
      12-15: 0011 -> 0x3 => 0x33330000 con la excepción de 10 y 11 que debemos dejar quietos
      El problema está en lo de dejar quietos porque tocaría a punta de máscaras pero el enunciado dice que sea lo más corto posible.
      Entonces la manera de dejarlos quietos sin hacer máscaras es dejarlos en lo que estaban antes manualmente, que sabesmos por esa misma
-     página que es 0x4.
+     página que es 0x4. Aunque como los pines A13-14 son de SWDIO y SWCLK, toca mantenerlos en 8.
      NOTA IMPORTANTE: El tutorial de pinout entrega un código que modifica los valores de AFIO->PCFG1. Esto no es correcto para esta placa con este sdk.
      La página 87-89 del manual nos indica que el registro que configura la funcionalidad der JTAG es AFIO_REMAP1->SWJCFG; con un 0b010 en este registro para
      desabilitar JTAG, sin desactivar SWD, que es lo que necesitamos para comunicarnos con la placa. 
@@ -97,7 +97,7 @@ int main(void) {
     //AFIO->PCFG1 = (AFIO->PCFG1 & ~(0x7 << 24)) | (0x2 << 24); //Desactivar JTAG Este es el del ejemplo, no sirve
     AFIO->REMAP1_B.SWJCFG = 0x2; //Desactivar JTAG real, sin afectar SWD;
     GPIOA->CFGLOW = 0x33333333; // PA0-7
-    GPIOA->CFGHIG = 0x84488833; // PA8-15
+    GPIOA->CFGHIG = 0x88888833; // PA8-15
     GPIOB->CFGHIG = 0x33334433; // PB8-15
     //botones
     GPIOA->ODATA |= (1 << 10) | (1 << 11) | (1 << 12) | (1 << 15);
@@ -145,16 +145,32 @@ void mostrar_numero(uint8_t num) {
     GPIOB->ODATA &= ~(1<<9);
     delay_ms(5);
 
+    GPIOB->ODATA |= (1 << 8) | (1 << 9);//apagado para prevenir ghosting
+
 
 }
 
 uint8_t debounce(uint16_t pin){
-    if(!(GPIOA->IDATA & (1 << pin))){//si 0, presionado
-        // uint32_t start = msTicks;
-        // while((msTicks - start) < 20) mostrar_numero(leds_empaquetados);//esperamos 20ms para verificar que el cambio de estado es real
-        delay_ms(20);
-        if(!(GPIOA->IDATA & (1 << pin))) return 1;//si espichado
+    static uint16_t estado_boton = 0xFFFF;//0 si presionado
+    static uint32_t ultimo_cambio[16] = {0};
+    uint8_t presionado = !(GPIOA->IDATA & (1 << pin));//1 si presionado
+    uint8_t soltado = (estado_boton & (1 << pin)) != 0;
+    if(presionado){
+        if(soltado && (msTicks - ultimo_cambio[pin]) > 20){
+            estado_boton &= ~(1 << pin);//marca como presionado
+            ultimo_cambio[pin] = msTicks;
+            return 1;
+        }
+    } else {
+        if(!soltado && (msTicks - ultimo_cambio[pin]) > 20){
+            estado_boton |= (1 << pin);//marca como soltado
+            ultimo_cambio[pin] = msTicks;
+        }
     }
+    //if(!(GPIOA->IDATA & (1 << pin))){//si 0, presionado
+        //delay_ms(20);
+      //  if(!(GPIOA->IDATA & (1 << pin))) return 1;//si presionado
+    //}
     return 0;//no espichado
 }
 
@@ -167,15 +183,14 @@ void manejador_leds(uint8_t empaquetado){
 }
 
 void manipulador_binario(){
-    mostrar_numero(leds_empaquetados);
-    manejador_leds(leds_empaquetados);
-
-    if(debounce(10) && cursor >=1) cursor--;//izq
-    if(debounce(11) && cursor <= 5) cursor++;//der
+    if(debounce(10) && cursor > 0) cursor--;//izq
+    if(debounce(11) && cursor < 5) cursor++;//der
     if(debounce(12)) leds_empaquetados ^= (1 << cursor);//toggle
     if(debounce(15)){//borrado
         leds_empaquetados = 0; 
         cursor = 0;
     } 
-        
+
+    mostrar_numero(leds_empaquetados);
+    manejador_leds(leds_empaquetados);    
 }
