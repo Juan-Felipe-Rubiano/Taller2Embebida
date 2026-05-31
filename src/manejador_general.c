@@ -1,3 +1,8 @@
+/**
+ * @file manejador_general.c
+ * @brief Orquestador central de eventos: distribuye cada EventBtn a las FSMs correspondientes
+ *        y aplica las reglas de interbloqueo del sistema.
+ */
 #include "manejador_general.h"
 
 extern FSM f_manejo;
@@ -5,6 +10,16 @@ extern FSM f_seguridad;
 extern FSM f_camaras;
 extern FSM f_testigos;
 
+
+/**
+ * @brief Procesa un evento de boton y actualiza las FSMs del sistema.
+ *
+ * Primero evalua intrusiones si el sistema esta armado; luego enruta el
+ * evento al subsistema correspondiente (manejo, camaras, seguridad).
+ * Finalmente aplica los interbloqueos activos de forma incondicional.
+ *
+ * @param ev Evento de boton extraido de la cola.
+ */
 void manejador_general(EventBtn ev){
     if(ev == ACCEL_PRESS) {
         if(f_seguridad.current_state == ST_ARMED) {

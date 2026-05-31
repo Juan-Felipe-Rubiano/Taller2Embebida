@@ -1,3 +1,7 @@
+/**
+ * @file system_util.c
+ * @brief Utilidades del sistema: debounce, lectura de botones, actualizacion de LEDs, displays y alertas.
+ */
 #include "system_util.h"
 #include <stdlib.h>
 
@@ -21,6 +25,12 @@ const uint8_t nums[10] = {
     0x6F  // 9
 };
 
+
+/**
+ * @brief Filtra el rebote mecanico de un boton en el pin de GPIOA indicado.
+ * @param pin Numero de pin (0-15) a leer en GPIOA.
+ * @return 1 si se detecto pulsacion, 2 si se detecto soltura, 0 si no hubo cambio.
+ */
 uint8_t debounce(uint16_t pin){
     static uint16_t estado_boton = 0xFFFF;//0 si presionado
     static uint32_t ultimo_cambio[16] = {0};
@@ -42,6 +52,11 @@ uint8_t debounce(uint16_t pin){
     return 0;//no espichado
 }
 
+
+/**
+ * @brief Lee los 4 botones fisicos y encola los eventos correspondientes.
+ * @param q Puntero a la cola donde se insertaran los eventos detectados.
+ */
 void enqueue_btn_event(Queue_p q){
     uint8_t btn_accel = debounce(10);
     if(btn_accel == 1) queue_enqueue(ACCEL_PRESS, q);
@@ -58,6 +73,17 @@ void enqueue_btn_event(Queue_p q){
     if(btn_seg == 1) queue_enqueue(SEG_TOGGLE, q);
 }
 
+
+/**
+ * @brief Bucle de actualizacion del sistema ejecutado en cada ciclo del while(1).
+ *
+ * Realiza en orden:
+ * -# Simulacion de carga de bateria segun el estado de la FSM de manejo.
+ * -# Despacho automatico de alertas (bateria baja, timeout de pre-alarma,
+ *    falla aleatoria de motor y auto-reset de falla).
+ * -# Actualizacion de los 6 LEDs con logica de parpadeo segun estado de alarma.
+ * -# Multiplexacion dinamica de los 2 displays de 7 segmentos.
+ */
 void update_system(void){
     //Bateria
     static uint32_t tiempo_bateria = 0;
@@ -148,6 +174,13 @@ void update_system(void){
     GPIOB->ODATA |= (1 << 8) | (1 << 9);
 }
 
+
+/**
+ * @brief Configuracion inicial de GPIO y perifericos del sistema.
+ *
+ * Habilita los relojes de GPIOA, GPIOB y AFIO, configura los pines de
+ * salida (LEDs y displays) y activa los pull-ups internos de los botones.
+ */
 void config(void){
     RCM->APB2CLKEN |= (1 << 2) | (1 << 3) | (1 << 0);
     AFIO->REMAP1_B.SWJCFG = 0x2; //Desactivar JTAG real, sin afectar SWD;
