@@ -15,12 +15,12 @@
 #include "testigos.h"
 
 /**
- * @brief Procesa un evento de botón y actualiza las máquinas de estado.
+ * @brief Procesa un evento unificado y actualiza las máquinas de estado.
  * 
- * Esta función toma un evento extraído de la cola de eventos y
- * determina a qué máquinas de estado debe ser enviado, ejecutando
- * las transiciones necesarias en el sistema general.
+ * Acepta tanto eventos de botón (EV_SOURCE_BUTTON) como eventos directos
+ * a una FSM (EV_SOURCE_DIRECT, originados vía UART). En ambos casos aplica
+ * los interlocks de seguridad antes de despachar.
  * 
- * @param ev Evento de botón a procesar.
+ * @param sev Evento del sistema a procesar.
  */
-void manejador_general(EventBtn ev);
+void manejador_general(SystemEvent sev);

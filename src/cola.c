@@ -23,7 +23,7 @@ void queue_init(Queue_p q) {
  * @param q Puntero a la cola.
  * @return true si la inserción fue exitosa, false de lo contrario.
  */
-bool queue_enqueue(EventBtn ev, Queue_p q) {
+bool queue_enqueue(SystemEvent ev, Queue_p q) {
     if(q->n < MAX){
         q->buffer[q->tail] = ev;
         q->tail = (q->tail + 1) % MAX;
@@ -43,7 +43,7 @@ bool queue_enqueue(EventBtn ev, Queue_p q) {
  * @param q Puntero a la cola.
  * @return true si se extrajo exitosamente, false si la cola estaba vacía.
  */
-bool queue_dequeue(EventBtn* ev, Queue_p q) {
+bool queue_dequeue(SystemEvent* ev, Queue_p q) {
     if(q->n > 0){
         *ev = q->buffer[q->head];
         q->head = (q->head + 1) % MAX;

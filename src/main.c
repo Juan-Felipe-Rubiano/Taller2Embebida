@@ -4,6 +4,7 @@
 #include "system_util.h"
 #include "cola.h"
 #include "manejador_general.h"
+#include "uart.h"
 /* USER CODE END Includes */
 
 
@@ -21,8 +22,9 @@ int main(void) {
     
     /* USER CODE BEGIN Init */
     config();
+    UART_Init(115200);
     queue_init(&btn_event_queue);
-    EventBtn cur_event;
+    SystemEvent cur_event;//Ahora para que pueda ser cualquiera de los dos tipos de eventos, botones o UART
     /* USER CODE END Init */
 
     while(1) {
@@ -31,6 +33,7 @@ int main(void) {
         if(queue_dequeue(&cur_event, &btn_event_queue)) {
             manejador_general(cur_event);
         }
+        UART_hw_event_listener(&btn_event_queue);
         update_system();
         /* USER CODE END While */
     }

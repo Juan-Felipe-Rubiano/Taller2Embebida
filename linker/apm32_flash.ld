@@ -46,4 +46,8 @@ SECTIONS
         __bss_end = .;     
         __bss_end__ = .;   
     } > RAM
+
+    /* Heap start - required by newlib's _sbrk for printf/malloc support */
+    end = .;
+    _end = .;
 }

@@ -58,31 +58,25 @@ uint8_t debounce(uint16_t pin){
  * @param q Puntero a la cola donde se insertaran los eventos detectados.
  */
 void enqueue_btn_event(Queue_p q){
+    //Casteo a SystemEvent a cada evento de boton con la fuente fisica, diferencia de evento UART
     uint8_t btn_accel = debounce(10);
-    if(btn_accel == 1) queue_enqueue(ACCEL_PRESS, q);
-    else if(btn_accel == 2) queue_enqueue(ACCEL_RELEASE, q);
+    if(btn_accel == 1) queue_enqueue((SystemEvent){.source=EV_SOURCE_BUTTON, .btn=ACCEL_PRESS}, q);
+    else if(btn_accel == 2) queue_enqueue((SystemEvent){.source=EV_SOURCE_BUTTON, .btn=ACCEL_RELEASE}, q);
 
     uint8_t btn_brake = debounce(11);
-    if(btn_brake == 1) queue_enqueue(BRAKE_PRESS, q);
-    else if(btn_brake == 2) queue_enqueue(BRAKE_RELEASE, q);
+    if(btn_brake == 1) queue_enqueue((SystemEvent){.source=EV_SOURCE_BUTTON, .btn=BRAKE_PRESS}, q);
+    else if(btn_brake == 2) queue_enqueue((SystemEvent){.source=EV_SOURCE_BUTTON, .btn=BRAKE_RELEASE}, q);
 
     uint8_t btn_rev = debounce(12);
-    if(btn_rev == 1) queue_enqueue(REV_TOGGLE, q);
+    if(btn_rev == 1) queue_enqueue((SystemEvent){.source=EV_SOURCE_BUTTON, .btn=REV_TOGGLE}, q);
 
     uint8_t btn_seg = debounce(15);
-    if(btn_seg == 1) queue_enqueue(SEG_TOGGLE, q);
+    if(btn_seg == 1) queue_enqueue((SystemEvent){.source=EV_SOURCE_BUTTON, .btn=SEG_TOGGLE}, q);
 }
 
 
 /**
  * @brief Bucle de actualizacion del sistema ejecutado en cada ciclo del while(1).
- *
- * Realiza en orden:
- * -# Simulacion de carga de bateria segun el estado de la FSM de manejo.
- * -# Despacho automatico de alertas (bateria baja, timeout de pre-alarma,
- *    falla aleatoria de motor y auto-reset de falla).
- * -# Actualizacion de los 6 LEDs con logica de parpadeo segun estado de alarma.
- * -# Multiplexacion dinamica de los 2 displays de 7 segmentos.
  */
 void update_system(void){
     //Bateria
@@ -177,9 +171,6 @@ void update_system(void){
 
 /**
  * @brief Configuracion inicial de GPIO y perifericos del sistema.
- *
- * Habilita los relojes de GPIOA, GPIOB y AFIO, configura los pines de
- * salida (LEDs y displays) y activa los pull-ups internos de los botones.
  */
 void config(void){
     RCM->APB2CLKEN |= (1 << 2) | (1 << 3) | (1 << 0);

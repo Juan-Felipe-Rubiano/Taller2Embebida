@@ -8,6 +8,8 @@
  */
 #pragma once
 #include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 
 /**
  * @brief Puntero a función que representa una acción de transición.

@@ -9,6 +9,7 @@
 #pragma once
 #include "stdint.h"
 #include <stdbool.h>
+#include "common.h"
 
 /** 
  * @brief Tamaño máximo del búfer de la cola. 
@@ -28,13 +29,35 @@ typedef enum {
 } EventBtn;
 
 /**
+ * @brief Origen de un evento en la cola.
+ */
+typedef enum {
+    EV_SOURCE_BUTTON, /**< Evento generado por un botón físico. */
+    EV_SOURCE_UART  /**< Evento directo a una FSM vía UART. */
+} EventSource;
+
+/**
+ * @brief Evento unificado que puede representar un botón o un despacho directo a FSM.
+ */
+typedef struct {
+    EventSource source; /**< Origen del evento. */
+    union {
+        EventBtn btn;             /**< Evento de botón (si source == EV_SOURCE_BUTTON). */
+        struct {
+            FSM* fsm;             /**< Puntero a la FSM destino (si source == EV_SOURCE_UART). */
+            int ev;              /**< Índice numérico del evento en la FSM destino. */
+        } direct;
+    };
+} SystemEvent;
+
+/**
  * @brief Estructura de la cola circular.
  */
 typedef struct {
-    EventBtn buffer[MAX];  /**< Búfer circular para almacenar los eventos. */
-    uint8_t head;       /**< Índice de lectura (cabeza de la cola). */
-    uint8_t tail;       /**< Índice de escritura (cola de la cola). */
-    uint8_t n;          /**< Número actual de elementos en la cola. */
+    SystemEvent buffer[MAX];  /**< Búfer circular para almacenar los eventos. */
+    uint8_t head;             /**< Índice de lectura (cabeza de la cola). */
+    uint8_t tail;             /**< Índice de escritura (cola de la cola). */
+    uint8_t n;                /**< Número actual de elementos en la cola. */
 } Queue_t;
 
 /**
@@ -54,11 +77,11 @@ void queue_init(Queue_p q);
 /**
  * @brief Encola un nuevo evento en la cola circular.
  * 
- * @param ev Evento a encolar.
+ * @param ev Evento unificado a encolar.
  * @param q Puntero a la cola.
  * @return true si el evento se encoló exitosamente, false si la cola está llena.
  */
-bool queue_enqueue(EventBtn ev, Queue_p q);
+bool queue_enqueue(SystemEvent ev, Queue_p q);
 
 /**
  * @brief Desencola un evento de la cola circular.
@@ -67,5 +90,4 @@ bool queue_enqueue(EventBtn ev, Queue_p q);
  * @param q Puntero a la cola.
  * @return true si se extrajo un evento, false si la cola está vacía.
  */
-
-bool queue_dequeue(EventBtn* ev, Queue_p q);
+bool queue_dequeue(SystemEvent* ev, Queue_p q);
